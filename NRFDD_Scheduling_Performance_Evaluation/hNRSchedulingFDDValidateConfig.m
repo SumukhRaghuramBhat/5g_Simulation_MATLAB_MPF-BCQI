@@ -1,0 +1,117 @@
+function hNRSchedulingFDDValidateConfig(simParameters) 
+%hNRSchedulingFDDValidateConfig Validate the configuration parameters
+%
+%   This is a helper function for an example
+%
+%   hNRSchedulingFDDValidateConfig(SIMPARAMETERS) Validates the simulation
+%   parameters
+%
+%   SIMPARAMETERS is a structure with these fields:
+%       NumFramesSim               - Number of 10 ms frames to simulate
+%       NumUEs                     - Number of UEs in the cell
+%       UEDistance                 - Distance of UEs from gNB (in meters)
+%       AppConfig                  - Application configuration
+%       RLCChannelConfig           - Logical channel and its associated RLC
+%                                    entity configuration
+%                                    of its logical channels
+%       SCS                        - Subcarrier spacing (in kHz)
+%       SchedulerStrategy          - Scheduler strategy
+%       NumMetricsSteps            - Number of times metrics plots get updated
+%                                    in the simulation
+
+%   Copyright 2019-2020 The MathWorks, Inc.
+
+%#codegen
+
+    % Number of slots in a frame
+    numSlotsFrame = 10 * (simParameters.SCS / 15);
+    % Number of slots in the simulation
+    numSlotsSim = simParameters.NumFramesSim * numSlotsFrame;
+
+    % Validate the simulation time
+    validateattributes(simParameters.NumFramesSim, {'numeric'}, {'nonempty', 'integer', 'scalar', 'finite', '>=', 0}, 'simParameters.NumFramesSim', 'NumFramesSim');
+    
+    % Validate the number of UEs
+    validateattributes(simParameters.NumUEs, {'numeric'}, {'nonempty', 'integer', 'scalar', '>', 0, '<=', 65519}, 'simParameters.NumUEs', 'NumUEs');
+
+    % Validate the distance of UEs from the gNB
+    validateattributes(simParameters.UEDistance, {'numeric'}, {'nonempty', 'vector', 'finite', 'numel', simParameters.NumUEs, '>', 0}, 'simParameters.UEDistance', 'UEDistance');
+
+    % Verify the logical channel's priority, PBR, and BSD properties
+    for lchIdx = 1:size(simParameters.RLCChannelConfig, 1)
+        % Validate the UE id on which the logical channel is configured
+        validateattributes(simParameters.RLCChannelConfig.RNTI(lchIdx), {'numeric'}, {'nonempty', 'integer', '>', 0, '<=', simParameters.NumUEs}, 'simParameters.RLCChannelConfig.RNTI', 'RNTI');
+        % Validate the logical channel id
+        validateattributes(simParameters.RLCChannelConfig.LogicalChannelID(lchIdx), {'numeric'}, {'nonempty', 'integer', '>', 0, '<=', 32}, 'simParameters.RLCChannelConfig.LogicalChannelID', 'LogicalChannelID');
+        % Validate priority of the logical channel
+        validateattributes(simParameters.RLCChannelConfig.Priority(lchIdx), {'numeric'}, {'nonempty', 'scalar', '>', 0, '<=', 16}, 'simParameters.RLCChannelConfig.Priority', 'Priority');
+        % Valid PBR (in kBps)
+        validPBR =  [0, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, Inf];
+        % Validate the PBR
+        validateattributes(simParameters.RLCChannelConfig.PBR(lchIdx), {'numeric'}, {'nonempty', 'scalar'}, 'simParameters.RLCChannelConfig.PBR', 'PBR');
+        if ~ismember(simParameters.RLCChannelConfig.PBR, validPBR)
+            error('PBR ( %d ) must be one of the set (0, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, Inf).', simParameters.RLCChannelConfig.PBR);
+        end
+        % Valid BSD (in ms)
+        validBucketSizeDuration =  [5, 10, 20, 50, 100, 150, 300, 500, 1000];
+        % Validate the BSD
+        validateattributes(simParameters.RLCChannelConfig.BSD(lchIdx), {'numeric'}, {'nonempty', 'scalar', '>', 0}, 'simParameters.RLCChannelConfig.BSD', 'BSD');
+        if ~ismember(simParameters.RLCChannelConfig.BSD, validBucketSizeDuration)
+            error('BucketSizeDuration ( %d ) must be one of the set (5, 10, 20, 50, 100, 150, 300, 500, 1000).', simParameters.RLCChannelConfig.BSD);
+        end
+        % Validate the logical channel direction
+        validateattributes(simParameters.RLCChannelConfig.EntityType(lchIdx), {'numeric'}, {'nonempty', 'integer', '>=', 0, '<=', 2}, 'simParameters.RLCChannelConfig.EntityType', 'EntityType');
+        % Check whether any logical channel information is duplicated
+        rnti = simParameters.RLCChannelConfig.RNTI(lchIdx);
+        lcid = simParameters.RLCChannelConfig.LogicalChannelID(lchIdx);
+        numLCHInfo = find((rnti == simParameters.RLCChannelConfig.RNTI) & ...
+            (lcid == simParameters.RLCChannelConfig.LogicalChannelID));
+        if numel(numLCHInfo) ~= 1
+            error('Duplicate logical channel configuration is present for LCID ( %d ) in UE ( %d ).', lcid, rnti);
+        end
+    end
+
+    % Validate the app periodicity
+    validateattributes(simParameters.AppConfig.PacketInterval, {'numeric'}, {'nonempty', 'integer', 'finite', '>', 0}, 'simParameters.AppConfig.PacketInterval', 'PacketInterval');
+    % Validate the size of packet generated by applications
+    validateattributes(simParameters.AppConfig.PacketSize, {'numeric'}, {'nonempty', 'integer', 'finite', '>=', 0}, 'simParameters.AppConfig.PacketSize', 'PacketSize');
+    % Validate the UE id on which the application is installed
+    validateattributes(simParameters.AppConfig.RNTI, {'numeric'}, {'nonempty', 'integer', '>', 0, '<=', simParameters.NumUEs}, 'simParameters.AppConfig.RNTI', 'RNTI');
+    % Validate the logical channel id on which the application is installed
+    validateattributes(simParameters.AppConfig.LCID, {'numeric'}, {'nonempty', 'integer', '>', 0, '<=', 32}, 'simParameters.AppConfig.LCID', 'AppConfig.LCID');
+    % Validate the logical channel id on which the application is installed
+    validateattributes(simParameters.AppConfig.HostDevice, {'numeric'}, {'nonempty', 'integer', '>=', 0, '<=', 2}, 'simParameters.AppConfig.HostDevice', 'HostDevice');
+
+    % Verify that each application is associated with a logical channel
+    for appIdx = 1:size(simParameters.AppConfig, 1)
+        rnti = simParameters.AppConfig.RNTI(appIdx);
+        lcid = simParameters.AppConfig.LCID(appIdx);
+        deviceType = simParameters.AppConfig.HostDevice(appIdx);
+
+        [lchInfoIdxList, ~] = find((rnti == simParameters.RLCChannelConfig.RNTI) & ...
+            (lcid == simParameters.RLCChannelConfig.LogicalChannelID));
+        if ~isempty(lchInfoIdxList)
+            isRLCEntityPresent = false;
+            for lchInfoIdx = 1: numel(lchInfoIdxList)
+                if (simParameters.RLCChannelConfig.EntityType(lchInfoIdxList(lchInfoIdx)) == 2) || (simParameters.RLCChannelConfig.EntityType(lchInfoIdxList(lchInfoIdx)) == deviceType)
+                    isRLCEntityPresent = true;
+                    break;
+                end
+            end
+            if ~isRLCEntityPresent
+                error('Application must be associated to a logical channel');
+            end
+        else
+                error('Application must be associated to a logical channel');
+        end
+    end
+    
+    % Validate the scheduler strategy
+    validateattributes(simParameters.SchedulerStrategy, {'char'}, {'nonempty', 'vector'}, 'simParameters.SchedulerStrategy', 'SchedulerStrategy');
+
+    % Validate the PUSCH preparation time
+    validateattributes(simParameters.PUSCHPrepTime, {'numeric'}, {'nonempty', 'integer', 'scalar', 'finite', '>=', 0}, 'simParameters.PUSCHPrepTime', 'PUSCHPrepTime');
+
+    % Validate the metric plot step-count. Number of steps must be less than or equal to number of slots in simulation
+    validateattributes(simParameters.NumMetricsSteps, {'numeric'}, {'nonempty', 'integer', 'scalar', '>', 0, '<=', numSlotsSim}, 'simParameters.NumMetricsSteps', 'NumMetricsSteps');
+end
